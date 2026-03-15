@@ -39,8 +39,10 @@ export interface BuilderOptions {
 
 export interface StarWebPrintBuilder {
   new (options?: BuilderOptions): StarWebPrintBuilder;
-  request: string;
-  createInitializationElement(): StarWebPrintBuilder;
+  createInitializationElement(options?: {
+    reset?: boolean;
+    print?: boolean;
+  }): string;
   createTextElement(options: {
     data?: string;
     characterspace?: number;
@@ -49,20 +51,20 @@ export interface StarWebPrintBuilder {
     height?: number;
     codepage?: string;
     international?: string;
-  }): StarWebPrintBuilder;
+  }): string;
   createAlignmentElement(options: {
     position: "left" | "center" | "right";
-  }): StarWebPrintBuilder;
+  }): string;
   createPeripheralElement(options: {
     channel: number;
     on: number;
     off: number;
-  }): StarWebPrintBuilder;
+  }): string;
   createCutPaperElement(options: {
     feed: boolean;
     type?: "full" | "partial";
-  }): StarWebPrintBuilder;
-  createRawDataElement(options: { data: string }): StarWebPrintBuilder;
+  }): string;
+  createRawDataElement(options: { data: string }): string;
 }
 
 export interface ExtManagerOptions {

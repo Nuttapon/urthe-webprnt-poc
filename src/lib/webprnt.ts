@@ -36,10 +36,11 @@ export async function openCashDrawer(url?: string): Promise<TraderResponse> {
   const trader = createTrader(url);
   const builder = createBuilder();
 
-  builder.createInitializationElement();
-  builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
+  let request = "";
+  request += builder.createInitializationElement();
+  request += builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
 
-  return sendRequest(trader, builder.request);
+  return sendRequest(trader, request);
 }
 
 export async function printText(
@@ -49,16 +50,17 @@ export async function printText(
   const trader = createTrader(url);
   const builder = createBuilder();
 
-  builder.createInitializationElement();
-  builder.createAlignmentElement({ position: "center" });
-  builder.createTextElement({
+  let request = "";
+  request += builder.createInitializationElement();
+  request += builder.createAlignmentElement({ position: "center" });
+  request += builder.createTextElement({
     data: text + "\n",
     width: 1,
     height: 1,
   });
-  builder.createCutPaperElement({ feed: true, type: "partial" });
+  request += builder.createCutPaperElement({ feed: true, type: "partial" });
 
-  return sendRequest(trader, builder.request);
+  return sendRequest(trader, request);
 }
 
 export async function printAndOpenDrawer(
@@ -68,17 +70,18 @@ export async function printAndOpenDrawer(
   const trader = createTrader(url);
   const builder = createBuilder();
 
-  builder.createInitializationElement();
-  builder.createAlignmentElement({ position: "center" });
-  builder.createTextElement({
+  let request = "";
+  request += builder.createInitializationElement();
+  request += builder.createAlignmentElement({ position: "center" });
+  request += builder.createTextElement({
     data: text + "\n",
     width: 1,
     height: 1,
   });
-  builder.createCutPaperElement({ feed: true, type: "partial" });
-  builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
+  request += builder.createCutPaperElement({ feed: true, type: "partial" });
+  request += builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
 
-  return sendRequest(trader, builder.request);
+  return sendRequest(trader, request);
 }
 
 export interface MonitoringCallbacks {
