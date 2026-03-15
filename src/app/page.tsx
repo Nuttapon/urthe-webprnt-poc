@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   openCashDrawer,
   printText,
@@ -112,7 +113,15 @@ export default function Home() {
     <div className="min-h-screen p-4 max-w-lg mx-auto">
       {/* Header */}
       <header className="mb-6">
-        <h1 className="text-2xl font-bold mb-3">URTHE POS</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-2xl font-bold">URTHE POS</h1>
+          <Link
+            href="/order"
+            className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+          >
+            ไปหน้า POS →
+          </Link>
+        </div>
         <div className="flex flex-wrap gap-4">
           <StatusBadge label="Printer" status={printerStatus} />
           <StatusBadge label="Scanner" status={scannerStatus} />
