@@ -52,6 +52,7 @@ export async function printText(
 
   let request = "";
   request += builder.createInitializationElement();
+  request += builder.createCodePageElement({ page: "cp874" });
   request += builder.createAlignmentElement({ position: "center" });
   request += builder.createTextElement({
     data: text + "\n",
@@ -72,6 +73,7 @@ export async function printAndOpenDrawer(
 
   let request = "";
   request += builder.createInitializationElement();
+  request += builder.createCodePageElement({ page: "cp874" });
   request += builder.createAlignmentElement({ position: "center" });
   request += builder.createTextElement({
     data: text + "\n",

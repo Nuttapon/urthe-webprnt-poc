@@ -49,7 +49,6 @@ function StatusBadge({
 const SAMPLE_RECEIPT = [
   "================================",
   "        URTHE STORE",
-  "       WebPRNT POC",
   "================================",
   "",
   "รายการทดสอบ          100.00",
@@ -113,7 +112,7 @@ export default function Home() {
     <div className="min-h-screen p-4 max-w-lg mx-auto">
       {/* Header */}
       <header className="mb-6">
-        <h1 className="text-2xl font-bold mb-3">URTHE POS — WebPRNT POC</h1>
+        <h1 className="text-2xl font-bold mb-3">URTHE POS</h1>
         <div className="flex flex-wrap gap-4">
           <StatusBadge label="Printer" status={printerStatus} />
           <StatusBadge label="Scanner" status={scannerStatus} />

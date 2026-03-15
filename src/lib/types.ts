@@ -65,6 +65,7 @@ export interface StarWebPrintBuilder {
     type?: "full" | "partial";
   }): string;
   createRawDataElement(options: { data: string }): string;
+  createCodePageElement(options: { page: string }): string;
 }
 
 export interface ExtManagerOptions {
