@@ -12,6 +12,7 @@ import { findBySku } from "@/lib/products";
 import { buildReceipt } from "@/lib/receipt";
 import { printText, printAndOpenDrawer } from "@/lib/webprnt";
 import { onBarcode } from "@/lib/scanner";
+import { addOrder } from "@/lib/order-history";
 
 // ── Actions ──
 
@@ -162,6 +163,11 @@ export default function OrderPage() {
         } else {
           await printText(receipt);
         }
+        addOrder({
+          items: order.items,
+          total: calcTotal(order.items),
+          paymentMethod: method,
+        });
         dispatch({ type: "PAYMENT_SUCCESS" });
       } catch {
         dispatch({ type: "PAYMENT_ERROR" });
@@ -190,6 +196,12 @@ export default function OrderPage() {
               ยกเลิก
             </button>
           )}
+          <Link
+            href="/order/history"
+            className="text-sm text-gray-500 font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100"
+          >
+            ประวัติ
+          </Link>
           <Link
             href="/"
             className="text-sm text-gray-500 font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100"
