@@ -1,22 +1,13 @@
 import type { OrderItem, PaymentMethod } from "./pos-types";
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  cash: "เงินสด",
-  qr: "QR Code",
-  credit: "บัตรเครดิต",
+  cash: "CASH",
+  qr: "QR CODE",
+  credit: "CREDIT CARD",
 };
 
-function getVisualWidth(str: string): number {
-  // Thai combining characters (vowels above/below and tone marks)
-  // These don't take up horizontal space on the printer.
-  const combiningChars = /[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g;
-  return str.replace(combiningChars, "").length;
-}
-
 function pad(left: string, right: string, width: number): string {
-  const leftWidth = getVisualWidth(left);
-  const rightWidth = getVisualWidth(right);
-  const gap = width - leftWidth - rightWidth;
+  const gap = width - left.length - right.length;
   return left + " ".repeat(Math.max(1, gap)) + right;
 }
 
@@ -27,6 +18,15 @@ function formatNumber(n: number): string {
   });
 }
 
+function formatDate(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
 export function buildReceipt(
   items: OrderItem[],
   paymentMethod: PaymentMethod
@@ -34,17 +34,6 @@ export function buildReceipt(
   const W = 32;
   const sep = "=".repeat(W);
   const dash = "-".repeat(W);
-  const now = new Date();
-  const date = now.toLocaleDateString("th-TH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const time = now.toLocaleTimeString("th-TH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 
   const total = items.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
@@ -56,7 +45,7 @@ export function buildReceipt(
     "        URTHE STORE",
     sep,
     "",
-    `วันที่: ${date} ${time}`,
+    `DATE: ${formatDate(new Date())}`,
     dash,
   ];
 
@@ -68,10 +57,10 @@ export function buildReceipt(
   }
 
   lines.push(dash);
-  lines.push(pad("รวมทั้งสิ้น", formatNumber(total), W));
-  lines.push(`ชำระด้วย: ${PAYMENT_LABELS[paymentMethod]}`);
+  lines.push(pad("TOTAL", formatNumber(total), W));
+  lines.push(`PAYMENT: ${PAYMENT_LABELS[paymentMethod]}`);
   lines.push(sep);
-  lines.push("     ขอบคุณที่ใช้บริการ");
+  lines.push("       THANK YOU");
   lines.push("        URTHE STORE");
   lines.push(sep);
 
