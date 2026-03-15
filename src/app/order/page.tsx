@@ -10,7 +10,8 @@ import type {
 } from "@/lib/pos-types";
 import { findBySku } from "@/lib/products";
 import { buildReceipt } from "@/lib/receipt";
-import { printText, printAndOpenDrawer, startMonitoring } from "@/lib/webprnt";
+import { printText, printAndOpenDrawer } from "@/lib/webprnt";
+import { onBarcode } from "@/lib/scanner";
 
 // ── Actions ──
 
@@ -133,32 +134,22 @@ function formatPrice(n: number): string {
 export default function OrderPage() {
   const [order, dispatch] = useReducer(orderReducer, initialOrder);
   const [toast, setToast] = useState<string | null>(null);
-  const [scannerConnected, setScannerConnected] = useState(false);
-
   const statusRef = useRef<OrderStatus>(order.status);
   statusRef.current = order.status;
 
-  // Scanner monitoring — same pattern as HW page
+  // Scanner — uses shared singleton connection
   useEffect(() => {
-    if (typeof window === "undefined" || !window.StarWebPrintExtManager) return;
-
-    const disconnect = startMonitoring({
-      onBarcodeData: (barcode) => {
-        const sku = barcode.trim();
-        if (statusRef.current !== "active") return;
-        const product = findBySku(sku);
-        if (product) {
-          dispatch({ type: "ADD_ITEM", sku });
-        } else {
-          setToast(`ไม่พบสินค้า: ${sku}`);
-        }
-      },
-      onAccessoryConnect: () => setScannerConnected(true),
-      onAccessoryDisconnect: () => setScannerConnected(false),
-      onPrinterOnline: () => setScannerConnected(true),
+    const unsub = onBarcode((barcode) => {
+      const sku = barcode.trim();
+      if (statusRef.current !== "active") return;
+      const product = findBySku(sku);
+      if (product) {
+        dispatch({ type: "ADD_ITEM", sku });
+      } else {
+        setToast(`ไม่พบสินค้า: ${sku}`);
+      }
     });
-
-    return disconnect;
+    return unsub;
   }, []);
 
   const processPayment = useCallback(
@@ -189,10 +180,6 @@ export default function OrderPage() {
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold">URTHE POS</h1>
-          <div
-            className={`w-2 h-2 rounded-full ${scannerConnected ? "bg-green-500" : "bg-gray-300"}`}
-            title={scannerConnected ? "Scanner connected" : "Scanner disconnected"}
-          />
         </div>
         <div className="flex items-center gap-3">
           {order.status === "active" && (

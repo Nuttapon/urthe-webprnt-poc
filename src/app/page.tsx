@@ -2,12 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import {
-  openCashDrawer,
-  printText,
-  printAndOpenDrawer,
-  startMonitoring,
-} from "@/lib/webprnt";
+import { openCashDrawer, printText, printAndOpenDrawer } from "@/lib/webprnt";
+import { onBarcode, onStatus } from "@/lib/scanner";
 
 type Status = "online" | "offline" | "unknown";
 type DrawerStatus = "open" | "closed" | "unknown";
@@ -89,15 +85,14 @@ export default function Home() {
   );
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.StarWebPrintExtManager) return;
+    const unsubBarcode = onBarcode((barcode) => {
+      setScanHistory((prev) => [
+        { barcode, timestamp: new Date() },
+        ...prev.slice(0, 49),
+      ]);
+    });
 
-    const disconnect = startMonitoring({
-      onBarcodeData: (barcode) => {
-        setScanHistory((prev) => [
-          { barcode, timestamp: new Date() },
-          ...prev.slice(0, 49),
-        ]);
-      },
+    const unsubStatus = onStatus({
       onPrinterOnline: () => setPrinterStatus("online"),
       onPrinterOffline: () => setPrinterStatus("offline"),
       onCashDrawerOpen: () => setDrawerStatus("open"),
@@ -106,7 +101,10 @@ export default function Home() {
       onAccessoryDisconnect: () => setScannerStatus("disconnected"),
     });
 
-    return disconnect;
+    return () => {
+      unsubBarcode();
+      unsubStatus();
+    };
   }, []);
 
   return (
