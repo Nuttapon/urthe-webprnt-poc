@@ -6,8 +6,17 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   credit: "บัตรเครดิต",
 };
 
+function getVisualWidth(str: string): number {
+  // Thai combining characters (vowels above/below and tone marks)
+  // These don't take up horizontal space on the printer.
+  const combiningChars = /[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g;
+  return str.replace(combiningChars, "").length;
+}
+
 function pad(left: string, right: string, width: number): string {
-  const gap = width - left.length - right.length;
+  const leftWidth = getVisualWidth(left);
+  const rightWidth = getVisualWidth(right);
+  const gap = width - leftWidth - rightWidth;
   return left + " ".repeat(Math.max(1, gap)) + right;
 }
 
