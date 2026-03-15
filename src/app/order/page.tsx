@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useEffect, useCallback, useRef } from "react";
+import { useReducer, useEffect, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import type {
   Order,
@@ -48,10 +48,8 @@ function orderReducer(state: Order, action: Action): Order {
     case "ADD_ITEM": {
       if (state.status !== "active") return state;
       const product = findBySku(action.sku);
-      if (!product) return state; // handled by toast in component
-      const existing = state.items.find(
-        (i) => i.product.sku === action.sku
-      );
+      if (!product) return state;
+      const existing = state.items.find((i) => i.product.sku === action.sku);
       const items = existing
         ? state.items.map((i) =>
             i.product.sku === action.sku
@@ -69,15 +67,11 @@ function orderReducer(state: Order, action: Action): Order {
 
     case "SET_QUANTITY": {
       if (action.quantity <= 0) {
-        const items = state.items.filter(
-          (i) => i.product.sku !== action.sku
-        );
+        const items = state.items.filter((i) => i.product.sku !== action.sku);
         return { ...state, items, total: calcTotal(items) };
       }
       const items = state.items.map((i) =>
-        i.product.sku === action.sku
-          ? { ...i, quantity: action.quantity }
-          : i
+        i.product.sku === action.sku ? { ...i, quantity: action.quantity } : i
       );
       return { ...state, items, total: calcTotal(items) };
     }
@@ -91,11 +85,7 @@ function orderReducer(state: Order, action: Action): Order {
       return { ...state, status: "active" };
 
     case "CONFIRM_PAYMENT":
-      return {
-        ...state,
-        status: "processing",
-        paymentMethod: action.method,
-      };
+      return { ...state, status: "processing", paymentMethod: action.method };
 
     case "PAYMENT_SUCCESS":
       return { ...state, status: "complete" };
@@ -142,37 +132,35 @@ function formatPrice(n: number): string {
 
 export default function OrderPage() {
   const [order, dispatch] = useReducer(orderReducer, initialOrder);
-  const [toast, setToast] = useReducer(
-    (_: string | null, msg: string | null) => msg,
-    null as string | null
-  );
-  const [errorToast, setErrorToast] = useReducer(
-    (_: string | null, msg: string | null) => msg,
-    null as string | null
-  );
+  const [toast, setToast] = useState<string | null>(null);
+  const [scannerConnected, setScannerConnected] = useState(false);
+
   const statusRef = useRef<OrderStatus>(order.status);
   statusRef.current = order.status;
 
-  // Scanner monitoring
+  // Scanner monitoring — same pattern as HW page
   useEffect(() => {
     if (typeof window === "undefined" || !window.StarWebPrintExtManager) return;
 
     const disconnect = startMonitoring({
       onBarcodeData: (barcode) => {
+        const sku = barcode.trim();
         if (statusRef.current !== "active") return;
-        const product = findBySku(barcode);
+        const product = findBySku(sku);
         if (product) {
-          dispatch({ type: "ADD_ITEM", sku: barcode });
+          dispatch({ type: "ADD_ITEM", sku });
         } else {
-          setToast(`ไม่พบสินค้า: ${barcode}`);
+          setToast(`ไม่พบสินค้า: ${sku}`);
         }
       },
+      onAccessoryConnect: () => setScannerConnected(true),
+      onAccessoryDisconnect: () => setScannerConnected(false),
+      onPrinterOnline: () => setScannerConnected(true),
     });
 
     return disconnect;
   }, []);
 
-  // Process payment
   const processPayment = useCallback(
     async (method: PaymentMethod) => {
       dispatch({ type: "CONFIRM_PAYMENT", method });
@@ -186,7 +174,7 @@ export default function OrderPage() {
         dispatch({ type: "PAYMENT_SUCCESS" });
       } catch {
         dispatch({ type: "PAYMENT_ERROR" });
-        setErrorToast("พิมพ์ใบเสร็จล้มเหลว กรุณาลองใหม่");
+        setToast("พิมพ์ใบเสร็จล้มเหลว กรุณาลองใหม่");
       }
     },
     [order.items]
@@ -196,13 +184,16 @@ export default function OrderPage() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Toast */}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
-      {errorToast && (
-        <Toast message={errorToast} onDismiss={() => setErrorToast(null)} />
-      )}
 
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <h1 className="text-xl font-bold">URTHE POS</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold">URTHE POS</h1>
+          <div
+            className={`w-2 h-2 rounded-full ${scannerConnected ? "bg-green-500" : "bg-gray-300"}`}
+            title={scannerConnected ? "Scanner connected" : "Scanner disconnected"}
+          />
+        </div>
         <div className="flex items-center gap-3">
           {order.status === "active" && (
             <button
@@ -237,8 +228,7 @@ export default function OrderPage() {
         )}
 
         {/* ── ACTIVE ── */}
-        {(order.status === "active" ||
-          order.status === "payment_select") && (
+        {(order.status === "active" || order.status === "payment_select") && (
           <>
             {/* Item list */}
             <div className="flex-1 overflow-y-auto p-4">
