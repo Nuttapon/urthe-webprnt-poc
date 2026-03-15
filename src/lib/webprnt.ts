@@ -55,7 +55,7 @@ export async function printText(
   request += builder.createAlignmentElement({ position: "center" });
   request += builder.createTextElement({
     data: text + "\n",
-    codepage: "cp874",
+    codepage: "utf8",
     width: 1,
     height: 1,
   });
@@ -76,7 +76,7 @@ export async function printAndOpenDrawer(
   request += builder.createAlignmentElement({ position: "center" });
   request += builder.createTextElement({
     data: text + "\n",
-    codepage: "cp874",
+    codepage: "utf8",
     width: 1,
     height: 1,
   });

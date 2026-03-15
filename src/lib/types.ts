@@ -51,6 +51,7 @@ export interface StarWebPrintBuilder {
     height?: number;
     codepage?: string;
     international?: string;
+    binary?: boolean;
   }): string;
   createAlignmentElement(options: {
     position: "left" | "center" | "right";
