@@ -9,9 +9,11 @@ export interface CompletedOrder {
 }
 
 let orders: CompletedOrder[] = [];
+let snapshot: CompletedOrder[] = orders;
 let listeners: Set<() => void> = new Set();
 
 function notify() {
+  snapshot = [...orders];
   listeners.forEach((cb) => cb());
 }
 
@@ -25,7 +27,7 @@ export function addOrder(order: Omit<CompletedOrder, "id" | "completedAt">): voi
 }
 
 export function getOrders(): CompletedOrder[] {
-  return [...orders];
+  return snapshot;
 }
 
 export function onOrdersChange(cb: () => void): () => void {
