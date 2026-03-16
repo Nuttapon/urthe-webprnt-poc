@@ -31,6 +31,7 @@ Comprehensive guide for integrating Star mPOP printer (receipt printing, cash dr
 - [ExtManager Event Reference](#extmanager-event-reference)
 - [Next.js Static Export Notes](#nextjs-static-export-notes)
 - [Porting Checklist](#porting-checklist)
+- [Scanner Singleton Pattern](#scanner-singleton-pattern)
 - [File Structure (POC Reference)](#file-structure-poc-reference)
 - [Complete Working Code](#complete-working-code)
 - [Troubleshooting](#troubleshooting)
@@ -260,17 +261,17 @@ export interface StarWebPrintTrader {
   onReceive: ((response: TraderResponse) => void) | null;
   onError: ((response: TraderResponse) => void) | null;
 
-  // Status check helpers (pass the response object)
-  isCoverOpen(response: TraderResponse): boolean;
-  isOffLine(response: TraderResponse): boolean;
-  isCompulsionSwitchClose(response: TraderResponse): boolean;
-  isEtbCommandExecute(response: TraderResponse): boolean;
-  isHighTemperatureStop(response: TraderResponse): boolean;
-  isNonRecoverableError(response: TraderResponse): boolean;
-  isAutoCutterError(response: TraderResponse): boolean;
-  isBlackMarkError(response: TraderResponse): boolean;
-  isPaperEnd(response: TraderResponse): boolean;
-  isPaperNearEnd(response: TraderResponse): boolean;
+  // Status check helpers (pass the status number from the response)
+  isCoverOpen(status: number): boolean;
+  isOffLine(status: number): boolean;
+  isCompulsionSwitchClose(status: number): boolean;
+  isEtbCommandExecute(status: number): boolean;
+  isHighTemperatureStop(status: number): boolean;
+  isNonRecoverableError(status: number): boolean;
+  isAutoCutterError(status: number): boolean;
+  isBlackMarkError(status: number): boolean;
+  isPaperEnd(status: number): boolean;
+  isPaperNearEnd(status: number): boolean;
 }
 
 export interface StarWebPrintBuilder {
@@ -323,54 +324,58 @@ export interface StarWebPrintBuilder {
   }): string;
 }
 
-export interface StarWebPrintExtManager {
-  new (options: { url: string; pollingTimeout?: number; pollingInterval?: number }): StarWebPrintExtManager;
-  connect(): boolean;
-  disconnect(): boolean;
+export interface ExtManagerOptions {
+  url: string;
+  timeout?: number;  // milliseconds (tested with 10000)
+}
 
-  // Printer events
+export interface StarWebPrintExtManager {
+  new (options: ExtManagerOptions): StarWebPrintExtManager;
+  connect(): void;
+  disconnect(): void;
+
+  // Printer events — tested in POC
   onPrinterOnline: (() => void) | null;
   onPrinterOffline: (() => void) | null;
   onPrinterImpossible: (() => void) | null;
-  onPrinterPaperReady: (() => void) | null;
-  onPrinterPaperNearEmpty: (() => void) | null;
   onPrinterPaperEmpty: (() => void) | null;
+  onPrinterPaperNearEmpty: (() => void) | null;
   onPrinterCoverOpen: (() => void) | null;
-  onPrinterCoverClose: (() => void) | null;
 
-  // Cash drawer events
+  // Cash drawer events — tested in POC
   onCashDrawerOpen: (() => void) | null;
   onCashDrawerClose: (() => void) | null;
 
-  // Barcode scanner events
-  onBarcodeReaderConnect: (() => void) | null;
-  onBarcodeReaderDisconnect: (() => void) | null;
-  onBarcodeReaderImpossible: (() => void) | null;
+  // Barcode scanner events — tested in POC
   onBarcodeDataReceive: ((data: { data: string }) => void) | null;  // data is Base64!
 
-  // Accessory (scanner connected via USB to mPOP)
+  // Accessory (scanner connected via USB to mPOP) — tested in POC
   onAccessoryConnectSuccess: (() => void) | null;
   onAccessoryConnectFailure: (() => void) | null;
   onAccessoryDisconnect: (() => void) | null;
 
-  // Display (customer-facing display, if connected)
-  onDisplayConnect: (() => void) | null;
-  onDisplayDisconnect: (() => void) | null;
-  onDisplayImpossible: (() => void) | null;
-
-  // Other
-  onStatusUpdate: ((data: { status: string }) => void) | null;
-  onWrite: (() => void) | null;
-  onReceive: ((response: unknown) => void) | null;
-  onError: ((response: unknown) => void) | null;
+  // Additional events from SDK source — NOT tested in POC
+  // Uncomment if needed for your use case:
+  // onPrinterPaperReady: (() => void) | null;
+  // onPrinterCoverClose: (() => void) | null;
+  // onBarcodeReaderConnect: (() => void) | null;
+  // onBarcodeReaderDisconnect: (() => void) | null;
+  // onBarcodeReaderImpossible: (() => void) | null;
+  // onDisplayConnect: (() => void) | null;
+  // onDisplayDisconnect: (() => void) | null;
+  // onDisplayImpossible: (() => void) | null;
+  // onStatusUpdate: ((data: { status: string }) => void) | null;
+  // onWrite: (() => void) | null;
+  // onReceive: ((response: unknown) => void) | null;
+  // onError: ((response: unknown) => void) | null;
 }
 
 // Augment the Window interface
 declare global {
   interface Window {
     StarWebPrintTrader: { new (options: TraderOptions): StarWebPrintTrader };
-    StarWebPrintBuilder: { new (): StarWebPrintBuilder };
-    StarWebPrintExtManager: { new (options: { url: string; pollingTimeout?: number; pollingInterval?: number }): StarWebPrintExtManager };
+    StarWebPrintBuilder: { new (options?: BuilderOptions): StarWebPrintBuilder };
+    StarWebPrintExtManager: { new (options: ExtManagerOptions): StarWebPrintExtManager };
   }
 }
 ```
@@ -425,7 +430,7 @@ export async function printText(text: string, url?: string) {
   let request = "";
   request += builder.createInitializationElement();
   request += builder.createAlignmentElement({ position: "center" });
-  request += builder.createTextElement({ data: text + "\n", width: 1, height: 1 });
+  request += builder.createTextElement({ data: text + "\n", codepage: "utf8", width: 1, height: 1 });
   request += builder.createCutPaperElement({ feed: true, type: "partial" });
 
   return sendRequest(trader, request);
@@ -438,7 +443,7 @@ export async function printAndOpenDrawer(text: string, url?: string) {
   let request = "";
   request += builder.createInitializationElement();
   request += builder.createAlignmentElement({ position: "center" });
-  request += builder.createTextElement({ data: text + "\n", width: 1, height: 1 });
+  request += builder.createTextElement({ data: text + "\n", codepage: "utf8", width: 1, height: 1 });
   request += builder.createCutPaperElement({ feed: true, type: "partial" });
   request += builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
 
@@ -459,7 +464,7 @@ export interface MonitoringCallbacks {
 export function startMonitoring(callbacks: MonitoringCallbacks, url?: string): () => void {
   const manager = new window.StarWebPrintExtManager({
     url: url || DEFAULT_EXT_URL,
-    pollingTimeout: 30000,
+    timeout: 10000,
   });
 
   manager.onBarcodeDataReceive = (data) => {
@@ -741,17 +746,18 @@ The ExtManager uses **polling** — it repeatedly calls the native bridge to che
 ```typescript
 const manager = new window.StarWebPrintExtManager({
   url: "http://localhost:8001/StarWebPRNT/SendExtMessage",
-  pollingTimeout: 30000,    // max time to wait for response (min 10000ms)
-  pollingInterval: 200,     // how often to poll (min 100ms, default 200ms)
+  timeout: 10000,  // milliseconds — tested working value
 });
 ```
+
+> **Note:** The SDK source may accept `pollingTimeout` and `pollingInterval` internally, but our tested TypeScript declarations use `timeout`. The value `10000` was confirmed working in the POC.
 
 **Lifecycle:**
 1. `manager.connect()` — starts polling, claims the printer
 2. Events fire via callbacks as they occur
 3. `manager.disconnect()` — releases the claim, stops polling
 
-**Only one ExtManager can claim the printer at a time.** If you have multiple tabs or components trying to connect, only the first will succeed. Always disconnect on cleanup.
+**Only one ExtManager can claim the printer at a time.** If you have multiple tabs or components trying to connect, only the first will succeed. Use the [Scanner Singleton Pattern](#scanner-singleton-pattern) to share one connection across multiple components.
 
 ---
 
@@ -794,6 +800,8 @@ When porting this integration to another repo:
 
 3. **Wrapper functions** → `src/lib/webprnt.ts` (or your lib directory)
 
+4. **Scanner singleton** (optional) → `src/lib/scanner.ts` — recommended if multiple components need barcode/status events
+
 ### Framework Integration
 
 | Framework | How to load SDK scripts |
@@ -811,13 +819,18 @@ When porting this integration to another repo:
 - [ ] Load order: Trader → Builder → ExtManager
 - [ ] Builder return values are **concatenated**, not chained
 - [ ] Barcode data is **decoded from Base64** with `atob()`
-- [ ] ExtManager `disconnect()` is called on component unmount / page unload
+- [ ] Only **one** ExtManager connection at a time (use singleton pattern if multiple components need events)
+- [ ] ExtManager `disconnect()` is called on component unmount / page unload (or use singleton for app-lifetime connection)
 - [ ] URLs point to `localhost:8001` (don't change these for webPRNT Browser)
 - [ ] Test on actual iPad with Star webPRNT Browser app (desktop browser won't have the native bridge)
 
 ### React Hook Pattern
 
+Use the [scanner singleton](#scanner-singleton-pattern) instead of calling `startMonitoring` directly — this avoids the "only one ExtManager connection" problem when multiple components need barcode/status data:
+
 ```typescript
+import { onBarcode, onStatus } from "@/lib/scanner";
+
 // Generic hook for any React-based framework
 function useStarPrinter() {
   const [printerStatus, setPrinterStatus] = useState<"online" | "offline" | "unknown">("unknown");
@@ -825,22 +838,114 @@ function useStarPrinter() {
   const [lastBarcode, setLastBarcode] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!window.StarWebPrintExtManager) return;
-
-    const disconnect = startMonitoring({
-      onBarcodeData: setLastBarcode,
+    const unsubBarcode = onBarcode(setLastBarcode);
+    const unsubStatus = onStatus({
       onPrinterOnline: () => setPrinterStatus("online"),
       onPrinterOffline: () => setPrinterStatus("offline"),
       onCashDrawerOpen: () => setDrawerStatus("open"),
       onCashDrawerClose: () => setDrawerStatus("closed"),
     });
 
-    return disconnect;
+    return () => {
+      unsubBarcode();
+      unsubStatus();
+    };
   }, []);
 
   return { printerStatus, drawerStatus, lastBarcode };
 }
 ```
+
+---
+
+## Scanner Singleton Pattern
+
+Since **only one ExtManager connection is allowed at a time**, the POC uses a module-level singleton that lazily connects on first use and multiplexes events to many subscribers via pub/sub. This is the recommended pattern for any app where multiple components need barcode or status data.
+
+```typescript
+// src/lib/scanner.ts
+
+import { startMonitoring, type MonitoringCallbacks } from "./webprnt";
+
+// ── Types ──
+
+type BarcodeCallback = (barcode: string) => void;
+
+export interface StatusCallbacks {
+  onPrinterOnline?: () => void;
+  onPrinterOffline?: () => void;
+  onCashDrawerOpen?: () => void;
+  onCashDrawerClose?: () => void;
+  onAccessoryConnect?: () => void;
+  onAccessoryDisconnect?: () => void;
+}
+
+// ── Module-level singleton state ──
+
+const barcodeListeners = new Set<BarcodeCallback>();
+const statusListeners = new Set<StatusCallbacks>();
+let connected = false;
+
+function ensureConnected(): void {
+  if (connected) return;
+  if (typeof window === "undefined" || !window.StarWebPrintExtManager) return;
+
+  connected = true;
+
+  const callbacks: MonitoringCallbacks = {
+    onBarcodeData: (barcode) => {
+      barcodeListeners.forEach((cb) => cb(barcode));
+    },
+    onPrinterOnline: () => {
+      statusListeners.forEach((cb) => cb.onPrinterOnline?.());
+    },
+    onPrinterOffline: () => {
+      statusListeners.forEach((cb) => cb.onPrinterOffline?.());
+    },
+    onCashDrawerOpen: () => {
+      statusListeners.forEach((cb) => cb.onCashDrawerOpen?.());
+    },
+    onCashDrawerClose: () => {
+      statusListeners.forEach((cb) => cb.onCashDrawerClose?.());
+    },
+    onAccessoryConnect: () => {
+      statusListeners.forEach((cb) => cb.onAccessoryConnect?.());
+    },
+    onAccessoryDisconnect: () => {
+      statusListeners.forEach((cb) => cb.onAccessoryDisconnect?.());
+    },
+  };
+
+  // Never disconnect — connection persists for app lifetime
+  startMonitoring(callbacks);
+}
+
+// ── Public API ──
+
+/** Subscribe to barcode scans. Returns an unsubscribe function. */
+export function onBarcode(callback: BarcodeCallback): () => void {
+  ensureConnected();
+  barcodeListeners.add(callback);
+  return () => {
+    barcodeListeners.delete(callback);
+  };
+}
+
+/** Subscribe to device status events. Returns an unsubscribe function. */
+export function onStatus(callbacks: StatusCallbacks): () => void {
+  ensureConnected();
+  statusListeners.add(callbacks);
+  return () => {
+    statusListeners.delete(callbacks);
+  };
+}
+```
+
+**Why this pattern:**
+- ExtManager only allows **one active connection** — multiple `connect()` calls from different components will fail
+- The singleton lazily connects on first subscriber and stays connected for the app's lifetime
+- Components subscribe/unsubscribe freely without worrying about the underlying connection
+- Works with any framework — just call `onBarcode()` / `onStatus()` and clean up on unmount
 
 ---
 
@@ -859,22 +964,47 @@ urthe-webprnt-poc/
 │   ├── app/
 │   │   ├── globals.css          # Tailwind v4 imports
 │   │   ├── layout.tsx           # SDK script loading
-│   │   └── page.tsx             # POC UI (all 3 features)
+│   │   ├── page.tsx             # Hardware test dashboard
+│   │   └── order/
+│   │       ├── page.tsx         # POS order flow (state machine)
+│   │       └── history/
+│   │           └── page.tsx     # Order ledger (useSyncExternalStore)
 │   └── lib/
 │       ├── types.ts             # TypeScript declarations for SDK
-│       └── webprnt.ts           # Wrapper functions (portable)
+│       ├── webprnt.ts           # Wrapper functions (portable)
+│       ├── scanner.ts           # Singleton barcode/status monitor (portable)
+│       ├── receipt.ts           # Receipt text formatter (portable pattern)
+│       ├── pos-types.ts         # Domain types (POC-specific)
+│       ├── products.ts          # Product catalog (POC-specific)
+│       └── order-history.ts     # In-memory order store (POC-specific)
 ```
 
 ---
 
 ## Complete Working Code
 
-The POC repo at `urthe-webprnt-poc/` contains fully working, tested code. The two files you need to port are:
+The POC repo at `urthe-webprnt-poc/` contains fully working, tested code. Files are categorized by portability:
 
-- **`src/lib/types.ts`** — TypeScript declarations (can be a `.d.ts` file)
-- **`src/lib/webprnt.ts`** — All wrapper functions, zero framework dependencies
+### Required for SDK integration
+These have **zero framework dependencies** — copy directly into any project:
 
-Everything else (layout, page, CSS) is framework-specific and should be adapted to your target project.
+- **`src/lib/types.ts`** — TypeScript declarations for all three SDK classes (can be a `.d.ts` file)
+- **`src/lib/webprnt.ts`** — Wrapper functions: `printText()`, `openCashDrawer()`, `printAndOpenDrawer()`, `startMonitoring()`
+
+### Optional / reusable patterns
+These are portable patterns worth adapting to your needs:
+
+- **`src/lib/scanner.ts`** — Singleton barcode/status monitor with pub/sub. Recommended if multiple components need barcode or status data (since ExtManager only allows one connection).
+- **`src/lib/receipt.ts`** — Receipt text formatter (32-char width for mPOP). Adapt the layout to your receipt design.
+
+### POC-specific (don't port)
+These are specific to this demo app's domain logic:
+
+- **`src/lib/pos-types.ts`** — Domain types (`Product`, `OrderItem`, `Order`, `PaymentMethod`)
+- **`src/lib/products.ts`** — Hardcoded product catalog
+- **`src/lib/order-history.ts`** — In-memory order store with `useSyncExternalStore` pattern
+
+Everything else (layout, pages, CSS) is framework-specific and should be adapted to your target project.
 
 ---
 
@@ -882,7 +1012,7 @@ Everything else (layout, page, CSS) is framework-specific and should be adapted 
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "สำเร็จ" but nothing happens | Builder return values not concatenated | Use `request += builder.createXxx()` pattern |
+| "Success" response but nothing prints | Builder return values not concatenated | Use `request += builder.createXxx()` pattern |
 | `StarWebPrintTrader is not defined` | SDK not loaded yet | Use `strategy="beforeInteractive"` or check script load order |
 | Barcode shows as garbage/encoded text | Not decoding Base64 | Use `atob(data.data)` |
 | ExtManager connect returns false | Another connection is active | Ensure `disconnect()` is called on cleanup |
@@ -890,4 +1020,4 @@ Everything else (layout, page, CSS) is framework-specific and should be adapted 
 | Print works but drawer doesn't | Wrong channel number | mPOP uses `channel: 1` |
 | Thai text garbled | Wrong codepage | Try `codepage: "utf8"` in `createTextElement` |
 | Timeout errors | Printer Bluetooth disconnected | Check iPad Bluetooth settings, re-pair mPOP |
-| ExtManager events stop firing | Polling timeout exceeded | Increase `pollingTimeout` or reconnect |
+| ExtManager events stop firing | Polling timeout exceeded | Increase `timeout` in ExtManagerOptions or reconnect |
